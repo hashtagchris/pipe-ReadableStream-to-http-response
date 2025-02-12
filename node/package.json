@@ -1,0 +1,16 @@
+{
+  "name": "node-tests",
+  "private": true,
+  "version": "1.0.0",
+  "main": "restify4.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "description": "",
+  "dependencies": {
+    "restify4": "npm:restify@^4.3.4"
+  }
+}
