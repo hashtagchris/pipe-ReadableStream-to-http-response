@@ -53,7 +53,7 @@ class FlakyReadableStream extends Readable {
 
   _read() {
     this._index++;
-    if (this._index > this._max) this.destroy(new Error("boom"));
+    if (this._index > this._max) this.destroy(new Error("pardon the interruption"));
     else {
       const str = `${this._index}\n`;
       const buf = Buffer.from(str, "ascii");
