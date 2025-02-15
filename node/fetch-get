@@ -1,0 +1,28 @@
+#!/usr/bin/env node
+async function main() {
+  try {
+    if (process.argv.length != 3) {
+      console.log(`usage: fetch-get <path>`);
+      process.exit(1);
+    }
+
+    const path = process.argv[2];
+
+    const url = `http://localhost:9595${path}`;
+    const response = await fetch(url);
+
+    console.log(`status: ${response.status} ${response.statusText}`);
+    console.log();
+
+    const textStream = response.body.pipeThrough(new TextDecoderStream());
+
+    for await (const chunk of textStream) {
+      console.log(`chunk: <<${chunk}>>`);
+    }
+  } catch (err) {
+    console.error(err.message);
+    console.error(err.stack);
+  }
+}
+
+main();

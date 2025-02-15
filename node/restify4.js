@@ -24,6 +24,7 @@ server.get("/pipe/.*", function (req, res, next) {
     // necessary to manually close each stream in order to prevent memory leaks."
     // - https://nodejs.org/docs/latest-v20.x/api/stream.html#readablepipedestination-options
     res.end();
+    // res.destroy();
   });
 
   // Close the read stream if the request is canceled.
@@ -55,7 +56,7 @@ server.get("/pipeline/.*", async function (req, res, next) {
     console.error("pipeline error:", err.message);
 
     // not needed
-    // res.end()
+    // res.end();
   }
   console.log("pipeline done");
   next();

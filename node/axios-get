@@ -1,0 +1,27 @@
+#!/usr/bin/env node
+const axios = require("axios");
+
+async function main() {
+  try {
+    if (process.argv.length != 3) {
+      console.log(`usage: axios-get <path>`);
+      process.exit(1);
+    }
+
+    const path = process.argv[2];
+
+    const url = `http://localhost:9595${path}`;
+    const response = await axios.get(url, {
+      validateStatus: () => true,
+    });
+
+    console.log(`status: ${response.status} ${response.statusText}`);
+    console.log();
+    console.log(response.data);
+  } catch (err) {
+    console.error(err.message);
+    console.error(err.stack);
+  }
+}
+
+main();
