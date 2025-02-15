@@ -1,36 +1,31 @@
 const test = require("node:test");
 const assert = require("node:assert");
-
 const restify = require("restify4");
 const {
   CounterStream,
   FlakyReadableStream,
   SlowCounterStream,
 } = require("../lib/readable-streams-for-testing");
-const {
-  naivePipeCallback,
-  robustPipeCallback,
-  pipelineCallback,
-} = require("../candidate-request-handlers");
-const candidates = [naivePipeCallback, robustPipeCallback, pipelineCallback];
+const candidates = require("../candidate-request-handlers");
 
 async function testAllCandidates() {
   const server = restify.createServer({ handleUncaughtExceptions: true });
   server.listen(9999);
   let testNumber = 0;
 
-  for (const candidate of candidates) {
-    await test(candidate.name, async (t) => {
+  for (const candidateName of Object.keys(candidates)) {
+    const candidate = candidates[candidateName];
+
+    await test(candidateName, async (t) => {
       await t.test("happy path", { timeout: 1000 }, async (t) => {
         const readStream = new CounterStream();
-        const getReadStream = () => readStream;
+        const getReadStream = () => Promise.resolve(readStream);
 
         const spy = {};
         const path = `/test${testNumber++}`;
         server.get(path, callbackWrapper(candidate(getReadStream), spy));
 
         const response = await fetch(`http://localhost:9999${path}`);
-        assert.ok(response.ok);
         assert.equal(response.status, 200);
 
         const textStream = response.body.pipeThrough(new TextDecoderStream());
@@ -52,16 +47,13 @@ async function testAllCandidates() {
         "error retrieving read stream object",
         { timeout: 1000 },
         async (t) => {
-          const getReadStream = () => {
-            throw new Error("no stream for you");
-          };
+          const getReadStream = () => Promise.reject(new Error("no stream for you"));
 
           const spy = {};
           const path = `/test${testNumber++}`;
           server.get(path, callbackWrapper(candidate(getReadStream), spy));
 
           const response = await fetch(`http://localhost:9999${path}`);
-          assert.equal(response.ok, false);
           assert.equal(response.status, 500);
 
           // skip retrieving and checking the response body
@@ -74,22 +66,31 @@ async function testAllCandidates() {
 
       await t.test("flaky read stream", { timeout: 1000 }, async (t) => {
         const readStream = new FlakyReadableStream();
-        const getReadStream = () => readStream;
+        const getReadStream = () => Promise.resolve(readStream);
 
         const spy = {};
         const path = `/test${testNumber++}`;
         server.get(path, callbackWrapper(candidate(getReadStream), spy));
 
         const response = await fetch(`http://localhost:9999${path}`);
-        assert.ok(response.ok);
         assert.equal(response.status, 200);
 
+        let responseText = "";
         const textStream = response.body.pipeThrough(new TextDecoderStream());
 
-        let responseText = "";
-        for await (const chunk of textStream) {
-          responseText += chunk;
-        }
+        // Ideally the client can detect the response stream was interrupted,
+        // and doesn't use the response body, despite the 200 OK status code.
+        await assert.rejects(
+          async () => {
+            for await (const chunk of textStream) {
+              responseText += chunk;
+            }
+          },
+          (err) => {
+            assert.equal(err.message, "terminated");
+            return true;
+          }
+        );
 
         // We're not dictating how much of a response was returned, but any text
         // returned should count up from 1.
@@ -103,7 +104,7 @@ async function testAllCandidates() {
 
       await t.test("canceled request", { timeout: 9000 }, async (t) => {
         const readStream = new SlowCounterStream();
-        const getReadStream = () => readStream;
+        const getReadStream = () => Promise.resolve(readStream);
 
         const spy = {};
         const path = `/test${testNumber++}`;
@@ -116,17 +117,22 @@ async function testAllCandidates() {
         const response = await fetch(`http://localhost:9999${path}`, {
           signal: controller.signal,
         });
-        assert.ok(response.ok);
         assert.equal(response.status, 200);
 
         let responseText = "";
         const textStream = response.body.pipeThrough(new TextDecoderStream());
 
-        await assert.rejects(async () => {
-          for await (const chunk of textStream) {
-            responseText += chunk;
+        await assert.rejects(
+          async () => {
+            for await (const chunk of textStream) {
+              responseText += chunk;
+            }
+          },
+          (err) => {
+            assert.equal(err.message, "This operation was aborted");
+            return true;
           }
-        });
+        );
 
         // We're not dictating how much of a response was returned, but any text
         // returned should count up from 1.
@@ -138,6 +144,7 @@ async function testAllCandidates() {
 
         assert.ok(spy.done);
         assert.ok(readStream.closed);
+        assert.ok(readStream.destroyed);
         assert.ok(spy.req.closed);
         assert.ok(spy.res.closed);
       });
