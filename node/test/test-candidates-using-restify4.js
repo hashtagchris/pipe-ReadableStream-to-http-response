@@ -2,11 +2,12 @@ const test = require("node:test");
 const assert = require("node:assert");
 const restify = require("restify4");
 const {
-  CounterStream,
-  FlakyReadableStream,
-  SlowCounterStream,
+  ReadableTestingStream,
 } = require("../lib/readable-streams-for-testing");
-const candidates = require("../candidate-request-handlers");
+let candidates = require("../candidate-request-handlers");
+
+// To test one candidate in isolation
+// candidates = { robustPipeCallback: candidates.robustPipeCallback };
 
 async function testAllCandidates() {
   const server = restify.createServer({ handleUncaughtExceptions: true });
@@ -18,7 +19,9 @@ async function testAllCandidates() {
 
     await test(candidateName, async (t) => {
       await t.test("happy path", { timeout: 1000 }, async (t) => {
-        const readStream = new CounterStream();
+        // return t.skip();
+
+        const readStream = new ReadableTestingStream();
         const getReadStream = () => Promise.resolve(readStream);
 
         const spy = {};
@@ -47,7 +50,10 @@ async function testAllCandidates() {
         "error retrieving read stream object",
         { timeout: 1000 },
         async (t) => {
-          const getReadStream = () => Promise.reject(new Error("no stream for you"));
+          // return t.skip();
+
+          const getReadStream = () =>
+            Promise.reject(new Error("no stream for you"));
 
           const spy = {};
           const path = `/test${testNumber++}`;
@@ -65,7 +71,9 @@ async function testAllCandidates() {
       );
 
       await t.test("flaky read stream", { timeout: 1000 }, async (t) => {
-        const readStream = new FlakyReadableStream();
+        // return t.skip();
+
+        const readStream = new ReadableTestingStream({}, { errorAfter: 4 });
         const getReadStream = () => Promise.resolve(readStream);
 
         const spy = {};
@@ -96,6 +104,10 @@ async function testAllCandidates() {
         // returned should count up from 1.
         assert.ok("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n".startsWith(responseText));
 
+        if (!spy.req.closed) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+
         assert.ok(spy.done);
         assert.ok(readStream.closed);
         assert.ok(spy.req.closed);
@@ -103,7 +115,9 @@ async function testAllCandidates() {
       });
 
       await t.test("canceled request", { timeout: 9000 }, async (t) => {
-        const readStream = new SlowCounterStream();
+        // return t.skip();
+
+        const readStream = new ReadableTestingStream({}, { delayMs: 200 });
         const getReadStream = () => Promise.resolve(readStream);
 
         const spy = {};

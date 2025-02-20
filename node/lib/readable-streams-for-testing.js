@@ -1,65 +1,31 @@
 const { Readable } = require("node:stream");
 
 // https://nodejs.org/docs/latest-v20.x/api/stream.html#an-example-counting-stream
-class CounterStream extends Readable {
-  constructor(opt, max) {
+// https://nodejs.org/docs/latest-v20.x/api/stream.html#errors-while-reading
+class ReadableTestingStream extends Readable {
+  constructor(opt, { chunks = 10, errorAfter = Infinity, delayMs = 0 } = {}) {
+    // https://nodejs.org/docs/latest-v20.x/api/stream.html#new-streamreadableoptions
     super(opt);
-    if (max === undefined) max = 10;
-    this._max = max;
-    this._index = 0;
-  }
-
-  _read() {
-    this._index++;
-    if (this._index > this._max) this.push(null);
-    else {
-      const str = `${this._index}\n`;
-      const buf = Buffer.from(str, "ascii");
-      this.push(buf);
-    }
-  }
-}
-
-class SlowCounterStream extends Readable {
-  constructor(opt, max) {
-    super(opt);
-    if (max === undefined) max = 10;
-    this._max = max;
-    this._index = 0;
+    this.chunks = chunks;
+    this.errorAfter = errorAfter;
+    this.delayMs = delayMs;
+    this.index = 0;
   }
 
   _read() {
     setTimeout(() => {
-      this._index++;
-      if (this._index > this._max) this.push(null);
-      else {
-        const str = `${this._index}\n`;
+      this.index++;
+      if (this.index > this.errorAfter) {
+        this.destroy(new Error("sorry to disturb your reading"));
+      } else if (this.index > this.chunks) {
+        this.push(null);
+      } else {
+        const str = `${this.index}\n`;
         const buf = Buffer.from(str, "ascii");
         this.push(buf);
       }
-    }, 200);
+    }, this.delayMs);
   }
 }
 
-// https://nodejs.org/docs/latest-v20.x/api/stream.html#errors-while-reading
-class FlakyReadableStream extends Readable {
-  constructor(opt, successfulReadCount) {
-    super(opt);
-
-    if (successfulReadCount === undefined) successfulReadCount = 4;
-    this._max = successfulReadCount;
-    this._index = 0;
-  }
-
-  _read() {
-    this._index++;
-    if (this._index > this._max) this.destroy(new Error("pardon the interruption"));
-    else {
-      const str = `${this._index}\n`;
-      const buf = Buffer.from(str, "ascii");
-      this.push(buf);
-    }
-  }
-}
-
-module.exports = { CounterStream, SlowCounterStream, FlakyReadableStream };
+module.exports = { ReadableTestingStream };

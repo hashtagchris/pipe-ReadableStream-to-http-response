@@ -8,6 +8,7 @@ const {
   CounterStream,
   SlowCounterStream,
   FlakyReadableStream,
+  ReadableTestingStream,
 } = require("./lib/readable-streams-for-testing");
 
 const server = restify.createServer({ handleUncaughtExceptions: true });
@@ -58,14 +59,14 @@ server.listen(9595, function () {
 });
 
 function getReadStream(url) {
-  const [_empty, _method, streamType = "default", streamArg] = url.split("/");
+  const [_empty, _method, streamType = "default"] = url.split("/");
 
   switch (streamType) {
     case "err":
-      return new FlakyReadableStream({}, streamArg);
+      return new ReadableTestingStream({}, { errorAfter: 4 });
     case "slow":
-      return new SlowCounterStream({}, streamArg);
+      return new ReadableTestingStream({}, { delayMs: 200 });
     default:
-      return new CounterStream({}, streamArg);
+      return new ReadableTestingStream();
   }
 }
